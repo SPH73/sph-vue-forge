@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { watch, reactive, toRaw } from "vue";
 import { cloneDeep } from "lodash-es";
+import { reactive, watch, toRaw } from "vue";
+import type { Board, Column, Task } from "@/types";
 import { v4 as uuidv4 } from "uuid";
 import draggable from "vuedraggable";
-import type { Board, Column, Task } from "@/types";
 import TaskCard from "./TaskCard.vue";
 import { useAlerts } from "@/stores/alerts";
-import TaskCreator from "./TaskCreator.vue";
-
 const alerts = useAlerts();
 // props
 const props = defineProps<{
@@ -16,7 +14,7 @@ const props = defineProps<{
   addTask(task: Partial<Task>): Promise<Task>;
 }>();
 
-//events
+// events
 const emit = defineEmits<{
   (e: "update", payload: Partial<Board>): void;
 }>();
@@ -24,7 +22,11 @@ const emit = defineEmits<{
 // local data
 const tasks = reactive(cloneDeep(props.tasks));
 const board = reactive(cloneDeep(props.board));
-const columns = reactive<Column[]>(JSON.parse(board.order as string));
+const columns = reactive<Column[]>(
+  typeof board.order === "string"
+    ? JSON.parse(board.order as string)
+    : board.order
+);
 
 // methods
 function addColumn() {
@@ -36,27 +38,31 @@ function addColumn() {
 }
 
 watch(columns, () => {
-  emit("update", cloneDeep({ ...board, order: JSON.stringify(toRaw(columns)) }));
+  emit(
+    "update",
+    cloneDeep({ ...props.board, order: JSON.stringify(toRaw(columns)) })
+  );
 });
 
-const addTask = async ({ title, column }: { title: string; column: Column }) => {
-  const newtask = { title };
+async function addTask({ column, title }: { column: Column; title: string }) {
+  const newTask = { title };
   try {
-    const savedTask = await props.addTask(newtask);
+    const savedTask = await props.addTask(newTask);
     tasks.push({ ...savedTask });
     column.taskIds.push(savedTask.id);
-  } catch (err) {
+  } catch (error) {
     alerts.error("Error creating task!");
   }
-};
+}
 </script>
+
 <template>
-  <div class="flex py-12 items-start">
+  <div class="flex pt-4 pb-12 items-start  max-w-full overflow-x-auto">
     <draggable
       :list="columns"
       group="columns"
       item-key="id"
-      class="flex overflow-x-auto flex-grow-0 flex-shrink-0 pb-8"
+      class="flex overflow-x-auto flex-grow-0 flex-shrink-0 py-8"
     >
       <template #item="{ element: column }">
         <div
@@ -88,11 +94,19 @@ const addTask = async ({ title, column }: { title: string; column: Column }) => 
                 />
               </template>
             </draggable>
-            <TaskCreator @create="addTask({ title: $event, column })" />
+            <TaskCreator
+              @create="
+                addTask({
+                  column,
+                  title: $event,
+                })
+              "
+            />
           </div>
         </div>
       </template>
     </draggable>
-    <button class="text-gray-500" @click="addColumn">New Column +</button>
+    <button class="text-gray-500 whitespace-nowrap pr-10 block mt-8" @click="addColumn">New Column +</button>
   </div>
 </template>
+
